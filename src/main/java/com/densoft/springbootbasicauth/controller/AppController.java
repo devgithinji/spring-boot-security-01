@@ -6,10 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
 import java.util.List;
@@ -40,15 +37,16 @@ public class AppController {
         return "redirect:/";
     }
 
-    @RequestMapping("/edit/{id}")
+    @GetMapping("/edit/{id}")
     public ModelAndView showEditProductPage(@PathVariable("id") int id) {
+        System.out.println("here");
         ModelAndView modelAndView = new ModelAndView("edit_product");
         Product product = productService.get(id);
         modelAndView.addObject("product",product);
         return modelAndView;
     }
 
-    @RequestMapping("/delete/{id}")
+    @GetMapping("/delete/{id}")
     public String deleteProduct(@PathVariable(name = "id") int id) {
         productService.delete(id);
         return "redirect:/";

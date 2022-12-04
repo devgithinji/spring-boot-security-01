@@ -8,7 +8,7 @@
 </head>
 <body>
 <div align="center">
-    <div sec:authorize="hasRole('USER')">
+    <div sec:authorize="hasAnyRole('USER','ADMIN')">
         <h3 th:inline="text">Welcome [[${#httpServletRequest.remoteUser}]]</h3>
     </div>
     <h1>Product List</h1>
@@ -24,7 +24,7 @@
             <th>Brand</th>
             <th>Made In</th>
             <th>Price</th>
-            <th sec:authorize="hasRole('USER')">Actions</th>
+            <th sec:authorize="hasRole('ADMIN')">Actions</th>
         </tr>
         </thead>
         <tbody>
@@ -34,7 +34,7 @@
             <td th:text="${product.brand}">Brand</td>
             <td th:text="${product.madein}">Made in</td>
             <td th:text="${product.price}">Price</td>
-            <td sec:authorize="hasRole('USER')">
+            <td sec:authorize="hasRole('ADMIN')">
                 <a th:href="@{'/edit/' + ${product.id}}">Edit</a>
                 &nbsp;&nbsp;&nbsp;
                 <a th:href="@{'/delete/' + ${product.id}}">Delete</a>
