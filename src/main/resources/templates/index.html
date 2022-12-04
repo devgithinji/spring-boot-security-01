@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml"
-      xmlns:th="http://www.thymeleaf.org">
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/thymleaf-extras-springsecurity5">
 <head>
     <meta charset="utf-8"/>
     <title>Product Manager</title>
 </head>
 <body>
 <div align="center">
+    <div sec:authorize="hasRole('USER')">
+        <h3 th:inline="text">Welcome [[${#httpServletRequest.remoteUser}]]</h3>
+    </div>
     <h1>Product List</h1>
-    <a href="/new">Create New Product</a>
+   <div sec:authorize="hasAnyRole('USER', 'ADMIN')">
+       <a href="/new">Create New Product</a>
+   </div>
     <br/><br/>
     <table border="1" cellpadding="10">
         <thead>
@@ -18,7 +24,7 @@
             <th>Brand</th>
             <th>Made In</th>
             <th>Price</th>
-            <th>Actions</th>
+            <th sec:authorize="hasRole('USER')">Actions</th>
         </tr>
         </thead>
         <tbody>
@@ -28,7 +34,7 @@
             <td th:text="${product.brand}">Brand</td>
             <td th:text="${product.madein}">Made in</td>
             <td th:text="${product.price}">Price</td>
-            <td>
+            <td sec:authorize="hasRole('USER')">
                 <a th:href="@{'/edit/' + ${product.id}}">Edit</a>
                 &nbsp;&nbsp;&nbsp;
                 <a th:href="@{'/delete/' + ${product.id}}">Delete</a>
