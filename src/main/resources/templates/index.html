@@ -8,16 +8,21 @@
 </head>
 <body>
 <div align="center">
-    <div sec:authorize="hasAnyRole('USER','ADMIN')">
-        <h3 th:inline="text">Welcome [[${#httpServletRequest.remoteUser}]]</h3>
+    <br><br>
+    <div sec:authorize="isAuthenticated()">
+        Welcome <b><span sec:authentication="name">name</span></b>
+        <p sec:authentication="principal.name"></p>
+        &nbsp;
+        <i><span sec:authentication="principal.authorities">Roles</span></i>
     </div>
     <h1>Product List</h1>
-   <div sec:authorize="hasAnyRole('USER', 'ADMIN')">
-       <a href="/new">Create New Product</a>
-   </div>
+
+    <div sec:authorize="hasAnyAuthority('CREATOR', 'ADMIN')">
+        <a href="/new">Create New Product</a>
+    </div>
     <br/><br/>
     <form th:action="@{/logout}" method="post">
-        <input type="submit" value="Logout" />
+        <input type="submit" value="Logout"/>
     </form>
     <br/><br/>
     <table border="1" cellpadding="10">
@@ -28,7 +33,7 @@
             <th>Brand</th>
             <th>Made In</th>
             <th>Price</th>
-            <th sec:authorize="hasRole('ADMIN')">Actions</th>
+            <th sec:authorize="hasAnyAuthority('ADMIN','EDITOR')">Actions</th>
         </tr>
         </thead>
         <tbody>
@@ -38,10 +43,14 @@
             <td th:text="${product.brand}">Brand</td>
             <td th:text="${product.madein}">Made in</td>
             <td th:text="${product.price}">Price</td>
-            <td sec:authorize="hasRole('ADMIN')">
-                <a th:href="@{'/edit/' + ${product.id}}">Edit</a>
+            <td sec:authorize="hasAnyAuthority('ADMIN','EDITOR')">
+                <div sec:authorize="hasAnyAuthority('ADMIN', 'EDITOR')">
+                    <a th:href="@{'/edit/' + ${product.id}}">Edit</a>
+                </div>
                 &nbsp;&nbsp;&nbsp;
-                <a th:href="@{'/delete/' + ${product.id}}">Delete</a>
+                <div sec:authorize="hasAuthority('ADMIN')">
+                    <a th:href="@{'/delete/' + ${product.id}}">Delete</a>
+                </div>
             </td>
         </tr>
         </tbody>
