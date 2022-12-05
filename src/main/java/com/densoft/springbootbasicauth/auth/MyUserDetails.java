@@ -57,4 +57,8 @@ public class MyUserDetails implements UserDetails {
     public String getName() {
         return user.getName();
     }
+
+    public boolean hasRole(String roleName){
+        return user.hasRole(roleName);
+    }
 }

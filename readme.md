@@ -1,77 +1,9 @@
-# Spring Boot Security Role-based Authorization Tutorial
-
-Create and Design Tables
-
-For role-based authorization with credentials and authorities stored in database, we have to create the following 3 tables:
-
-![](/home/dennis/Documents/users_and_roles_relationship.png "user roles and relationship")
-
-You can exceute the following mysql script
-
-```
-CREATE TABLE `users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `email` varchar(45) NOT NULL,
-  `name` varchar(45) NOT NULL,
-  `password` varchar(64) NOT NULL,
-  `enabled` tinyint(4) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `email_UNIQUE` (`email`)
-);
-
-CREATE TABLE `roles` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(45) NOT NULL,
-  PRIMARY KEY (`id`)
-);
-
-CREATE TABLE `users_roles` (
-  `user_id` int(11) NOT NULL,
-  `role_id` int(11) NOT NULL,
-  KEY `user_fk_idx` (`user_id`),
-  KEY `role_fk_idx` (`role_id`),
-  CONSTRAINT `role_fk` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`),
-  CONSTRAINT `user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-);
+# Spring Security Redirect Users After Login Based on Roles
 
 
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('patrick@gmail.com','patrick', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('alex@gmail.com','alex', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('john@gmail.com','john', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('namhm@gmail.com','namhm', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('admin@gmail.com','admin', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
+## Implement hasRole method in User class
 
-INSERT INTO `roles` (`name`) VALUES ('USER');
-INSERT INTO `roles` (`name`) VALUES ('CREATOR');
-INSERT INTO `roles` (`name`) VALUES ('EDITOR');
-INSERT INTO `roles` (`name`) VALUES ('ADMIN');
-
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (1, 1);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (2, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (3, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (5, 4);
-```
-
-#### Code the entity classes
-
-#### Role Entity class
-
-```
-@Entity
-@Table(name = "roles")
-@Data
-public class Role {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
-    private String name;
-}
-```
-
-#### User entity class
+The application will need to check if the currently logged-in user has a specific role or not. So code the **hasRole()**method in the User entity class as follows:
 
 ```
 @Entity
@@ -83,6 +15,7 @@ public class User {
     private Long id;
     private String email;
     private String name;
+    @JsonProperty(access = WRITE_ONLY)
     private String password;
     private boolean enabled;
 
@@ -90,14 +23,23 @@ public class User {
     @JoinTable(
             name = "users_roles",
             joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id",referencedColumnName = "id")
+            inverseJoinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id")
     )
     private Set<Role> roles = new HashSet<>();
+
+    public void addRole(Role role) {
+        this.roles.add(role);
+    }
+
+    public boolean hasRole(String roleName){
+        return this.roles.stream().anyMatch(role -> role.getName().equals(roleName));
+    }
 
 }
 ```
 
-#### User Details Implementation
+The hasRole() method will return true if the user is assigned with the specified role, or false otherwise. And also update your custom UserDetails class – adding the hasRole() method as shown below:
+
 
 ```
 public class MyUserDetails implements UserDetails {
@@ -149,15 +91,55 @@ public class MyUserDetails implements UserDetails {
     public String getName() {
         return user.getName();
     }
+
+    public boolean hasRole(String roleName){
+        return user.hasRole(roleName);
+    }
 }
 ```
 
-#### Configure Authorization
+
+## Code Authentication Success Handler
+
+Next, code a class that extends an implementation of AuthenticationSuccessHandler, such as SavedRequestAwareAuthenticationSuccessHander like the following code:
+
+You know, the onAuthenticationSuccess() method will be invoked by Spring Security upon user’s successful login. So it’s very logically to put the redirection code in this method, for redirecting the authenticated users based on their roles.
+
+```
+@Configuration
+public class LoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws ServletException, IOException {
+        MyUserDetails myUserDetails = (MyUserDetails) authentication.getPrincipal();
+        String redirectUrl = request.getContextPath();
+        if (myUserDetails.hasRole("ADMIN")) {
+            redirectUrl = "admin-home";
+        } else if (myUserDetails.hasRole("CREATOR")) {
+            redirectUrl = "creator-home";
+        } else if (myUserDetails.hasRole("EDITOR")) {
+            redirectUrl = "editor-home";
+        }
+
+        response.sendRedirect(redirectUrl);
+    }
+}
+
+```
+
+
+## Configure Spring Security to Use Success Handler
+
+
+And update the Spring Security configuration class to use the authentication success handler class as follows:
 
 ```
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    private LoginSuccessHandler loginSuccessHandler;
 
 
     @Override
@@ -186,14 +168,17 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/").permitAll()
+                .antMatchers("/creator-home").hasAuthority("CREATOR")
+                .antMatchers("/editor-home").hasAuthority("EDITOR")
                 .antMatchers("/new").hasAnyAuthority( "ADMIN", "CREATOR")
                 .antMatchers("/edit/**").hasAnyAuthority("ADMIN","EDITOR")
-                .antMatchers("/delete/**").hasAuthority("ADMIN")
+                .antMatchers("/delete/**","/admin-home").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
                 .and().formLogin()
                 .loginPage("/login") // custom login url
                 .usernameParameter("u") // custom login form username name
                 .passwordParameter("p") //custom login form password name
+                .successHandler(loginSuccessHandler)
                 .permitAll()
 //                .failureUrl("/loginerror") //custom error login redirection page
 //                .defaultSuccessUrl("/loginsuccess") //custom success login redirection page
@@ -201,46 +186,29 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
     }
 }
-```
-
-#### Implement Authorization using Thymeleaf integration
-
-To use Thymeleaf with spring security for the view make sure you declare the relavant
 
 ```
-<html xmlns:th="http://www.thymeleaf.org"
-    xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
-```
 
-To display username of a logged in user use the following code:
 
-`<span sec:authentication="name">Username</span>`
 
-To show all the roles (authorities/permissions/rights) of the current user, use the following code:
+## Update View Layer
 
-`<span sec:authentication="principal.authorities">Roles</span>`
-
-To show a section that is for only authenticated users, use the following code:
+This part is optional. If the role-based view pages (editor home, admin dashboard, etc) do not have corresponding handler methods in controller layer, you can configure the view name resolution in a Spring MVC configuration as follows:
 
 ```
-<div sec:authorize="isAuthenticated()">
-        Welcome <b><span sec:authentication="name">name</span></b>
-        <p sec:authentication="principal.name"></p>
-         
-        <i><span sec:authentication="principal.authorities">Roles</span></i>
-    </div>
-```
+@Configuration
+public class MvcConfig implements WebMvcConfigurer {
 
-The users with role EDITOR or ADMIN can see the links to edit/update products, thus the following code:
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+//      view resolvers used instead of writing controller methods to map requests
+        registry.addViewController("/403").setViewName("403");
+        registry.addViewController("/").setViewName("home");
+        registry.addViewController("/login").setViewName("login");
+        registry.addViewController("/admin-home").setViewName("admin_home");
+        registry.addViewController("/creator-home").setViewName("creator_home");
+        registry.addViewController("/editor-home").setViewName("editor_home");
+    }
+}
 
-```
-<div sec:authorize="hasAnyAuthority('ADMIN', 'EDITOR')">
-    <a th:href="/@{'/edit/' + ${product.id}}">Edit</a>
-</div>
-```
-
-```
-<div sec:authorize="hasAuthority('ADMIN')">
-    <a th:href="/@{'/delete/' + ${product.id}}">Delete</a>
-</div>
 ```

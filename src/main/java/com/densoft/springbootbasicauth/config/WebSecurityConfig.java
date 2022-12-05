@@ -1,6 +1,7 @@
 package com.densoft.springbootbasicauth.config;
 
 import com.densoft.springbootbasicauth.service.UserDetailsServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -15,6 +16,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    private LoginSuccessHandler loginSuccessHandler;
 
 
     @Override
@@ -43,14 +47,17 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/").permitAll()
+                .antMatchers("/creator-home").hasAuthority("CREATOR")
+                .antMatchers("/editor-home").hasAuthority("EDITOR")
                 .antMatchers("/new").hasAnyAuthority( "ADMIN", "CREATOR")
                 .antMatchers("/edit/**").hasAnyAuthority("ADMIN","EDITOR")
-                .antMatchers("/delete/**").hasAuthority("ADMIN")
+                .antMatchers("/delete/**","/admin-home").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
                 .and().formLogin()
                 .loginPage("/login") // custom login url
                 .usernameParameter("u") // custom login form username name
                 .passwordParameter("p") //custom login form password name
+                .successHandler(loginSuccessHandler)
                 .permitAll()
 //                .failureUrl("/loginerror") //custom error login redirection page
 //                .defaultSuccessUrl("/loginsuccess") //custom success login redirection page

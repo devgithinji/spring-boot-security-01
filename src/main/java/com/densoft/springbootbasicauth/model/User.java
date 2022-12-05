@@ -34,4 +34,8 @@ public class User {
         this.roles.add(role);
     }
 
+    public boolean hasRole(String roleName){
+        return this.roles.stream().anyMatch(role -> role.getName().equals(roleName));
+    }
+
 }
