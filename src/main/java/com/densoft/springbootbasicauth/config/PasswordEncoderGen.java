@@ -2,7 +2,7 @@ package com.densoft.springbootbasicauth.config;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-public class PasswordEncoder {
+public class PasswordEncoderGen {
 
     public static void main(String[] args) {
         BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();

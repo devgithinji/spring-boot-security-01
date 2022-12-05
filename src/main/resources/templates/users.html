@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Users List</title>
+</head>
+<body>
+<div style="text-align: center; margin-top: 20px">
+    <table border="1" cellpadding="10" style="border-collapse: collapse; margin-inline: auto">
+        <thead class="thead-dark">
+        <tr>
+            <th>User ID</th>
+            <th>E-mail</th>
+            <th>Name</th>
+            <th>Roles</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="user: ${users}">
+            <td th:text="${user.id}">User ID</td>
+            <td th:text="${user.email}">E-mail</td>
+            <td th:text="${user.name}">Name</td>
+            <td th:text="${user.roles}">Roles</td>
+            <td><a th:href="@{'/users/edit/' + ${user.id}}">Edit</a></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>
