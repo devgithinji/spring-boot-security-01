@@ -7,7 +7,7 @@ The logout success handler helps to do the following
 * Clean up resources that are used temporarily by the user
 * Any custom logics upon successful logout
 
-![logout handler](/home/dennis/Documents/spring_security_logout_success_handler.png "logout handler")
+![spring_security_logout_success_handler](https://user-images.githubusercontent.com/34215705/205951149-6cedde3b-9da5-4c62-82d3-1172578bc498.png)
 
 
 ## 1. Simple Logout Success Handler Example
