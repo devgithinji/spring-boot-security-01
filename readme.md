@@ -46,7 +46,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 In this approach, an additional cookie will be created in the user’s web browser, for storing the user’s credentials – besides the session cookie named JSESSIONID:
 
-![](/home/dennis/Documents/Remember_me_Cookie.png)
+![Remember_me_Cookie](https://user-images.githubusercontent.com/34215705/205951948-47075e6f-58d3-4786-8669-5982508ab0a5.png)
 
 This new cookie named remember-me, which stores username, password and expiration time in base64 encoding. A private key is used to prevent modification of the remember-me token, and [username, password, private key] are hashed using MD5 algorithm.
 
