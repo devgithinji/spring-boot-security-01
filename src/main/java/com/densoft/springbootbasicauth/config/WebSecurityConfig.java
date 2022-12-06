@@ -58,8 +58,10 @@ public class WebSecurityConfig {
                 .permitAll()
 //                .failureUrl("/loginerror") //custom error login redirection page
 //                .defaultSuccessUrl("/loginsuccess") //custom success login redirection page
+                .and().rememberMe()
                 .and().logout().permitAll();
 //                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
+
 
 
         return httpSecurity.build();
