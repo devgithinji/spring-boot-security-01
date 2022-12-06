@@ -1,145 +1,41 @@
-# How to Get Logged-in User's Details with Spring Security
+# Spring Security: Prevent User from Going Back to Login Page if Already logged in
 
-## 1. Display the default username
+A typical scenario is that a user has just logged in to the website and somehow he clicks the Back button in the browser unintentionally (or type the /login URL). Spring Security doesn’t handle this situation, so we need to write a little bit extra code, e.g. redirecting the logged-in user to the homepage in case he accidentally visits the login page again.
 
-To show the default username of the currently logged-in user in a view template using Thymeleaf, we can print the value of remoteUser object associated with the current request:
-
-```
-<span>[[${#request.remoteUser}]]</span>
-```
-
-Or using Thymeleaf Extras for Spring Security:
+Suppose that you configure Spring Security to use a custom login page at the /login URL in the Spring security configuration class as below:
 
 ```
-<span sec:authentication="name">Username</span>
-
-```
-
-However, this way always prints the value returned from the getUsername() method in the UserDetails class
-
-## 2. Display any user’s information (first name, last name, fullname…)
-
-Suppose that we want to display the name of the currently logged-in user instead of email. Add a getter method in the UserDetails class as shown below:
-
-```
-public class MyUserDetails implements UserDetails {
-
-    private User user;
-
-    public MyUserDetails(User user) {
-        this.user = user;
-    }
-
-// other override methods from user details
-
-    public String getName() {
-        return user.getName();
+@Configuration
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+ 
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+            ...
+            .formLogin()
+                .loginPage("/login")           
+                .permitAll()
+            ...
     }
 }
 ```
 
-Then in the view, you can display full name of the user as follows:
-
-```
-<p sec:authentication="principal.name"></p>
-```
-
-Here, the principal object is actually a UserDetails object returned by the loadUserByUsername() method - So we can access any properties in this object. For example, if we have first name:
-
-```
-<span sec:authentication="principal.firstname">Firstname</span>
-```
-
-Note that to use sec:authentication attribute, you must declare this dependency:
-
-```
-<dependency>
-    <groupId>org.thymeleaf.extras</groupId>
-    <artifactId>thymeleaf-extras-springsecurity5</artifactId>
-</dependency>
-```
-
-And declare an XML namespace:
-
-```
-<html xmlns:th="http://www.thymeleaf.org"
-    xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
-
-```
-
-## 3. Display user’s assigned roles
-
-To show the assigned roles (authorities) of the currently logged-in user, write the following line of code:
-
-```
-<span sec:authentication="principal.authorities">Roles</span>
-```
-
-It will call the getAuthorities() method of the UserDetails class.
-
-## 4. Get UserDetails object in Spring Controller
-
-Certainly there will be a case in which we want to get the UserDetails object that represent the currently logged-in user in Java code, e.g. a handler method a Spring controller class. The simplest way is using the @AuthenticationPrincipal annotation as shown in the example below:
-
-```
-package net.codejava;
- 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
- 
-@Controller
-public class AccountController {
- 
-    @Autowired
-    private UserServices service;
-   
-    @GetMapping("/account")
-    public String viewUserAccountForm(
-            @AuthenticationPrincipal ShopmeUserDetails userDetails,
-            Model model) {
-        String userEmail = userDetails.getUsername();
-        User user = service.getByEmail(userEmail);
-   
-        model.addAttribute("user", user);
-        model.addAttribute("pageTitle", "Account Details");
-   
-        return "users/account_form";
-    }
-}
-```
-
-Other Examples
+And to prevent the user from going back to the login page if he already logged in, you need to write a simple handler method for the /login URL in a Spring MVC controller as follows:
 
 ```
 @Controller
-public class SecurityController {
+public class AppController {
+   
+    @GetMapping("/login")
+    public String showLoginForm(Model model) {
+     
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            return "login";
+        }
  
-    @RequestMapping(value = "/username", method = RequestMethod.GET)
-    @ResponseBody
-    public String currentUserName(Authentication authentication) {
-        return authentication.getName();
+        return "redirect:/";
     }
 }
-```
-
-
-```
-@Controller
-public class SecurityController {
- 
-    @RequestMapping(value = "/username", method = RequestMethod.GET)
-    @ResponseBody
-    public String currentUserName(Principal principal) {
-        return principal.getName();
-    }
-}
-```
-
-## 5. Get UserDetails object from anywhere in the spring project
-
-The API of the Authentication class is very open so that the framework remains as flexible as possible. Because of this, the Spring Security principal can only be retrieved as an Object and needs to be cast to the correct UserDetails instance:
-
-```
-  Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        MyUserDetails myUserDetails = (MyUserDetails) authentication.getPrincipal();
-        System.out.println(myUserDetails.getName());
 ```

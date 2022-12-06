@@ -12,7 +12,7 @@ public class MvcConfig implements WebMvcConfigurer {
 //      view resolvers used instead of writing controller methods to map requests
         registry.addViewController("/403").setViewName("403");
         registry.addViewController("/").setViewName("home");
-        registry.addViewController("/login").setViewName("login");
+//        registry.addViewController("/login").setViewName("login");
         registry.addViewController("/admin-home").setViewName("admin_home");
         registry.addViewController("/creator-home").setViewName("creator_home");
         registry.addViewController("/editor-home").setViewName("editor_home");

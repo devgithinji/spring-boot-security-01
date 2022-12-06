@@ -3,6 +3,9 @@ package com.densoft.springbootbasicauth.controller;
 import com.densoft.springbootbasicauth.model.Product;
 import com.densoft.springbootbasicauth.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -49,6 +52,15 @@ public class AppController {
     @GetMapping("/delete/{id}")
     public String deleteProduct(@PathVariable(name = "id") int id) {
         productService.delete(id);
+        return "redirect:/";
+    }
+
+    @GetMapping("/login")
+    public String showLoginForm(Model model){
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if(authentication == null || authentication instanceof AnonymousAuthenticationToken){
+           return "login" ;
+        }
         return "redirect:/";
     }
 }
