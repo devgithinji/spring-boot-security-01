@@ -9,7 +9,7 @@ This handler method helps in:
 
 We can easily implement that, thanks to the highly customizable and flexible APIs provided by Spring Security. The following diagram explains the process:
 
-![](/home/dennis/Documents/spring_security_login_failure_handler.png)
+![login failure](images/spring_security_login_failure_handler.png "login failure")
 
 
 ## 1. Simple Authentication Failure Handler
