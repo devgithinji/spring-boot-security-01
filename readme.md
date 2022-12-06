@@ -1,115 +1,153 @@
-# Spring Security Remember Me - How to Add Remember Login Function to Existing Spring Boot Web Application
+# Spring Security Authentication Success Handler Examples
 
-## 1. Update Custom Login Page
+This comes in handy when you want to run methods after successful login example
 
-If you’re using a [custom login page](https://www.codejava.net/frameworks/spring-boot/spring-security-custom-login-page), you need to add the following HTML code to the login HTML file, for displaying the “Remember Me” option:
+* Log user’s information (for auditing purpose)
+* Request to change password if expired, or request to update user’s details
+* Clear previous failed login attempts (for limit login attempts functionality)
+* Clear One-Time Password (for OTP functionality)
+* any custom logics you want to execute after successful authentication
 
-```
-<input type="checkbox" name="remember-me" /> Remember Me
-```
+![](/home/dennis/Documents/spring_security_login_success_handler.png)
 
-Note that the name of the checkbox must be remember-me which is required by Spring Security. The login page will look something like this:
 
-![](/home/dennis/Documents/Custom_Login_Page_with_Remember_Me_option.png "Custom Login page remeber me")
+## 1. Simple Authentication Success Handler
 
-In case the default login page is used, you can skip this step, as Spring Security will generate code for the default login page, which looks like below:
-
-### 2. Implement Remember Me function with Cookies only (Hash-based Token)
-
-The simplest way to add Remember login function to an existing Spring Boot web application is putting a call  **rememberMe** () in a security configuration class like this:
+In this way, we create an anonymous class of type AuthenticationSuccessHandler as parameter for the successHandler() method of a FormLoginConfigurer class in a Spring security configuration class, as below:
 
 ```
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
  
+    ...
+   
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
-            .antMatchers("/users").authenticated()
-            .anyRequest().permitAll()
-            .and()
+            ...
             .formLogin()
-                .loginPage("/login") // custom login page
+                .loginPage("/login")
                 .usernameParameter("email")
-                .defaultSuccessUrl("/users")
                 .permitAll()
-            .and()
-            .rememberMe()
-            .and()
+                .successHandler(new AuthenticationSuccessHandler() {
+ 
+                    @Override
+                    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+                            Authentication authentication) throws IOException, ServletException {
+                        // run custom logics upon successful login
+                    }
+                })
             ...
     }
-   
+ 
 }
 ```
 
-In this approach, an additional cookie will be created in the user’s web browser, for storing the user’s credentials – besides the session cookie named JSESSIONID:
 
-![](/home/dennis/Documents/Remember_me_Cookie.png)
+The callback method onAuthenticationSuccess() will be invoked by Spring Security right after a user has logged in successfully to the application.
 
-This new cookie named remember-me, which stores username, password and expiration time in base64 encoding. A private key is used to prevent modification of the remember-me token, and [username, password, private key] are hashed using MD5 algorithm.
-
-The default expiration time is 14 days. You can override this value in the configuration class like this:
+This approach is suitable for simple use case, e.g. logging information. For example:
 
 ```
-.rememberMe().tokenValiditySeconds(7 * 24 * 60 * 60) // expiration time: 7 days
+.formLogin()
+    .loginPage("/login")
+    .usernameParameter("email")
+    .permitAll()
+    .successHandler(new AuthenticationSuccessHandler() {
+     
+        @Override
+        public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+                Authentication authentication) throws IOException, ServletException {
+            // run custom logics upon successful login
+         
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String username = userDetails.getUsername();
+         
+            System.out.println("The user " + username + " has logged in.");
+         
+            response.sendRedirect(request.getContextPath());
+        }
+    })
 ```
 
-Also note that, by default, the remember-me cookie won’t survive when the application restarted. That means when the application restarts, all previous cookies become invalid and the user must login manually. You can override this default behavior by supplying a fixed key like this:
-
-It’s because by default, Spring Security supplies a random key at application’s startup. So if you fix the key, remember-me cookies are still valid until expire.
+It’s recommended to extend the SavedRequestAwareAuthenticationSuccessHandler class which will automatically redirect the user to the secured page prior to login. For example:
 
 ```
-.rememberMe()
-    .tokenValiditySeconds(7 * 24 * 60 * 60) // expiration time: 7 days
-    .key("AbcdefghiJklmNoPqRstUvXyz")   // cookies will survive if restarted
+successHandler(new SavedRequestAwareAuthenticationSuccessHandler() {
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+            Authentication authentication) throws IOException, ServletException {
+        // run custom logics upon successful login
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        String username = userDetails.getUsername();
+        System.out.println("The user " + username + " has logged in.");
+     
+        super.onAuthenticationSuccess(request, response, authentication);
+    }                  
+})
+```
 
+It’s better to use this implementation because Spring Security saved the URL prior to login and redirect the user back to that URL upon successful authentication.
+
+
+## 2. Advanced Authentication Success Handler
+
+
+In case the authentication success handler class needs to use another business class (a dependency) to perform the custom logics, we need to configure spring security differently.
+
+First, create a separate handler class that extends SavedRequestAwareAuthenticationSuccessHandler class as follows:
+
+```
+@Component
+public class LoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+ 
+    @Autowired
+    private CustomerServices customerService;
+   
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+            Authentication authentication) throws IOException, ServletException {
+ 
+        CustomerUserDetails customerDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Customer customer = customerDetails.getCustomer();
+     
+        if (customer.isOTPRequired()) {
+            customerService.clearOTP(customer);
+        }
+     
+        super.onAuthenticationSuccess(request, response, authentication);
+    }
+ 
+}
 ```
 
 
-## 3. Implement Remember Me function with Database (Persistent Token)
+Here, the @Component annotation is used so its instances will be managed by Spring framework and injectable into other components if needed. And as you can see, this handler depends on CustomerService class to perform the custom logics in the callback method onAuthenticationSuccess().
 
-The second approach for implementing Remember Login function in a Spring Boot web application is using persistent token, which stores user’s credentials in database – besides a simpler remember-me cookie in the user’s web browser.
+And in the Spring Security configuration class, we need to autowire an instance of the handler class as follows:
 
-To implement the Remember me feature with database, you need to create a new table named persistent_logins using the following SQL script (MySQL):
-
-```
-CREATE TABLE `persistent_logins` (
-  `username` VARCHAR(64) NOT NULL,
-  `series` VARCHAR(64) NOT NULL,
-  `token` VARCHAR(64) NOT NULL,
-  `last_used` TIMESTAMP NOT NULL,
-  PRIMARY KEY (`series`));
-```
-
-Then update the Spring security configuration class as follows:
 
 ```
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
-    @Autowired
-    private DataSource dataSource;
  
+    ...
+   
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
-            ...
-            .and()
-            .formLogin()
-                .loginPage("/login") // custom login page
-                .permitAll()
-            .and()
-            .rememberMe().tokenRepository(persistentTokenRepository())
-            ...
+                .formLogin()
+                    .loginPage("/login")
+                    .usernameParameter("email")
+                    .permitAll()
+                    .successHandler(loginSuccessHandler)
+        ...
     }
-   
  
-    @Bean
-    public PersistentTokenRepository persistentTokenRepository() {
-        JdbcTokenRepositoryImpl tokenRepo = new JdbcTokenRepositoryImpl();
-        tokenRepo.setDataSource(dataSource);
-        return tokenRepo;
-    }
+    @Autowired
+    private LoginSuccessHandler loginSuccessHandler;
+ 
 }
 ```
