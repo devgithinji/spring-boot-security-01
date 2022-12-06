@@ -1,25 +1,24 @@
-# Spring Security Authentication Failure Handler Examples
+# Spring Security Logout Success Handler Example
 
-This handler method helps in:
+The logout success handler helps to do the following
 
-* Log the failed login attempt (for auditing purpose)
-* Record the failed login to implement limit failed login attempts feature (to prevent brute force attack)
-* Display a custom login failure page
-* any custom logics we want to perform upon authentication failure.
+* Log the logged-out user (for auditing purpose)
+* Display different logout success pages based on user’s roles
+* Clean up resources that are used temporarily by the user
+* Any custom logics upon successful logout
 
-We can easily implement that, thanks to the highly customizable and flexible APIs provided by Spring Security. The following diagram explains the process:
-
-![](/home/dennis/Documents/spring_security_login_failure_handler.png)
+![](/home/dennis/Documents/spring_security_logout_success_handler.png)
 
 
-## 1. Simple Authentication Failure Handler
+## 1. Simple Logout Success Handler Example
 
-Suppose that you have an existing Spring Boot application in which Spring Security is used for authentication. The following code snippet shows you the simplest way of implementing an authentication failure handler using an anonymous class:
+The simplest way to use a logout success handler is create an anonymous class of type LogoutSuccessHandler as argument to the method logoutSuccessHandler() of the LogoutConfigurer class, as shown below:
 
 ```
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+ 
     ...
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -28,99 +27,97 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         .formLogin()
             .loginPage("/login")
             .usernameParameter("email")
-            .failureHandler(new AuthenticationFailureHandler() {
+            .permitAll()
+        .and()
+        .logout()
+            .logoutSuccessHandler(new LogoutSuccessHandler() {
  
                 @Override
-                public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
-                        AuthenticationException exception) throws IOException, ServletException {
-                    String email = request.getParameter("email");
-                    String error = exception.getMessage();
-                    System.out.println("A failed login attempt with email: "
-                                        + email + ". Reason: " + error);
+                public void onLogoutSuccess(HttpServletRequest request,
+                            HttpServletResponse response, Authentication authentication)
+                        throws IOException, ServletException {
+                    CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+                    String username = userDetails.getUsername();
  
-                    String redirectUrl = request.getContextPath() + "/login?error";
-                    response.sendRedirect(redirectUrl);
+                    System.out.println("The user " + username + " has logged out.");
+ 
+                    response.sendRedirect(request.getContextPath());
                 }
             })
-            .permitAll()
-            ...
+            .permitAll();
+        ...
     }
+   
+ 
 }
 ```
 
 
-As you can see, the AuthenticationFailureHandler interface defines the method onAuthenticationFailure() which will be called by Spring Security upon a failed login attempt. The code in this example just logs the information (email and error message) and then redirects the user to the login error page.
+As you can see, the onLogoutSuccess() method will be invoked by Spring Security upon successful logout of a user. In this example, we just get username of the logged-out user and print it to the standard output, and redirect the user to the application’s context path.
 
-However, it is recommended to have the handler class extends the SimpleUrlAuthenticationFailureHandler class which will redirect the user to the default failure URL and also forward the exception object, as shown in the following example:
+It’s recommended to use a subtype of LogoutSuccessHandler like SimpleUrlLogoutSuccessHandler which handles the navigation on logout automatically. For example:
 
 ```
-.formLogin()
-    .loginPage("/login")
-    .usernameParameter("email")
-    .failureHandler(new SimpleUrlAuthenticationFailureHandler() {
+.logout()
+    .logoutSuccessHandler(new SimpleUrlLogoutSuccessHandler() {
      
         @Override
-        public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
-                AuthenticationException exception) throws IOException, ServletException {
-            String email = request.getParameter("email");
-            String error = exception.getMessage();
-            System.out.println("A failed login attempt with email: "
-                                + email + ". Reason: " + error);
+        public void onLogoutSuccess(HttpServletRequest request,
+                    HttpServletResponse response, Authentication authentication)
+                throws IOException, ServletException {
          
-            super.setDefaultFailureUrl("/login?error");
-            super.onAuthenticationFailure(request, response, exception);
+            CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+            String username = userDetails.getUsername();
+         
+            System.out.println("The user " + username + " has logged out.");
+         
+            super.onLogoutSuccess(request, response, authentication);
         }
     })
+    .permitAll()
 ```
 
-Here, we need to specify the default failure URL, otherwise it will give 404 error. But in the login page we can display the exception message.
+Spring Security also provides the HttpStatusReturningLogoutSuccessHandler which returns an HTTP status code instead of redirection, which is useful for RESTful webservices.
 
 
-## 2. Advanced Authentication Failure Handler
+## 2. Advanced Logout Success Handler Example
 
-In case the authentication failure handler needs to depend on a business/service class in order to perform the custom logics upon failed login, we should create a separate authentication failure handler class, as shown in the example code below:
+In case the Logout success handler needs to depend on a business/service class to perform the custom logics, we need to create a separate class as follows:
 
 ```
 @Component
-public class LoginFailureHandler extends SimpleUrlAuthenticationFailureHandler {
+public class CustomLogoutSuccessHandler extends SimpleUrlLogoutSuccessHandler {
  
     @Autowired
     private CustomerServices customerService;
-   
-    @Override
-    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
-            AuthenticationException exception) throws IOException, ServletException {
-        String email = request.getParameter("email");
-     
-        String redirectURL = "/login?error&email=" + email;
-     
-        if (exception.getMessage().contains("OTP")) {
-            redirectURL = "/login?otp=true&email=" + email;
-        } else {
-            Customer customer = customerService.getCustomerByEmail(email);
-            if (customer.isOTPRequired()) {
-                redirectURL = "/login?otp=true&email=" + email;
-            }
-        }
-     
-        super.setDefaultFailureUrl(redirectURL);
-     
-     
-        super.onAuthenticationFailure(request, response, exception);
-    }
  
+    @Override
+    public void onLogoutSuccess(HttpServletRequest request,
+                HttpServletResponse response, Authentication authentication)
+            throws IOException, ServletException {
+     
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        String username = userDetails.getUsername();
+     
+        Customer customer = customerService.getCustomerByEmail(username);
+     
+        // process logics with customer
+     
+        super.onLogoutSuccess(request, response, authentication);
+    }  
 }
 ```
 
 
-Here, you see the handler class is annotated with the @Component annotation – so Spring framework will manage instances (beans) of this class. And it depends on an instance of the CustomerService class, which will be injected by Spring framework because the @Autowired annotation is used. And you can see code in the onAuthenticationFailure() callback method needs to use CustomerService.
+Here, the @Component annotation tells Spring framework to manage instances of this class as beans. And the @Autowired annotation tells Spring framework to inject an instance of the business class into this handler class.
 
-And update the Spring security configuration class as follows:
+Then configure the Spring Security configuration class like this:
 
 ```
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+ 
     ...
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -129,11 +126,16 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         .formLogin()
             .loginPage("/login")
             .usernameParameter("email")
-            .failureHandler(failureHandler)
+            .permitAll()
+        .and()
+        .logout()
+            .logoutSuccessHandler(logoutSuccessHandler)
+            .permitAll();
         ...
     }
    
     @Autowired
-    private LoginFailureHandler failureHandler;
+    private CustomLogoutSuccessHandler logoutSuccessHandler;   
+ 
 }
 ```
