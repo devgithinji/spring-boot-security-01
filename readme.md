@@ -10,7 +10,8 @@ If you’re using a [custom login page](https://www.codejava.net/frameworks/spri
 
 Note that the name of the checkbox must be remember-me which is required by Spring Security. The login page will look something like this:
 
-![](/home/dennis/Documents/Custom_Login_Page_with_Remember_Me_option.png "Custom Login page remeber me")
+![Custom_Login_Page_with_Remember_Me_option](https://user-images.githubusercontent.com/34215705/205951647-8b447e01-6dc9-463e-bcb6-2f11b3849a6e.png)
+
 
 In case the default login page is used, you can skip this step, as Spring Security will generate code for the default login page, which looks like below:
 
