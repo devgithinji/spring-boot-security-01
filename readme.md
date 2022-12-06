@@ -8,7 +8,7 @@ This comes in handy when you want to run methods after successful login example
 * Clear One-Time Password (for OTP functionality)
 * any custom logics you want to execute after successful authentication
 
-![login success image](file:///home/dennis/Documents/spring_security_login_success_handler.png "login success")
+![login success image](../../Documents/spring_security_login_success_handler.png "login success")
 
 
 ## 1. Simple Authentication Success Handler
