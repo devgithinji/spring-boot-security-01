@@ -4,9 +4,9 @@ Create and Design Tables
 
 For role-based authorization with credentials and authorities stored in database, we have to create the following 3 tables:
 
-![](/home/dennis/Documents/users_and_roles_relationship.png "user roles and relationship")
+![role based auth](images/users_and_roles_relationship.png "user roles and relationship")
 
-You can exceute the following mysql script
+You can execute the following mysql script
 
 ```
 CREATE TABLE `users` (
