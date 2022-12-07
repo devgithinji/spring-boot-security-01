@@ -2,7 +2,6 @@
 
 Create a User model  class to map the users table
 
-
 ```
 @Entity
 @Table(name= "users")
@@ -29,7 +28,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> getUserByUsername(String username);
 }
 ```
-
 
 Create a class that implements the UserDetails Interface as required by spring security
 
