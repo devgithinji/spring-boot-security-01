@@ -26,4 +26,7 @@ public class User {
     )
     private Set<Role> roles = new HashSet<>();
 
+    @Column(name = "reset_password_token")
+    private String resetPasswordToken;
+
 }

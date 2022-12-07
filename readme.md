@@ -1,246 +1,330 @@
-# Spring Boot Security Role-based Authorization Tutorial
+# Spring Security Forgot Password Tutorial
 
-Create and Design Tables
+## 1. Update Database table and Entity class
 
-For role-based authorization with credentials and authorities stored in database, we have to create the following 3 tables:
+First, you need to update the database table that stores the user information (customers in my case) by adding a new column to store a random token key which is used to protect the reset password page:
 
-![role based auth](images/users_and_roles_relationship.png "user roles and relationship")
-
-You can execute the following mysql script
-
-```
-CREATE TABLE `users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `email` varchar(45) NOT NULL,
-  `name` varchar(45) NOT NULL,
-  `password` varchar(64) NOT NULL,
-  `enabled` tinyint(4) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `email_UNIQUE` (`email`)
-);
-
-CREATE TABLE `roles` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(45) NOT NULL,
-  PRIMARY KEY (`id`)
-);
-
-CREATE TABLE `users_roles` (
-  `user_id` int(11) NOT NULL,
-  `role_id` int(11) NOT NULL,
-  KEY `user_fk_idx` (`user_id`),
-  KEY `role_fk_idx` (`role_id`),
-  CONSTRAINT `role_fk` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`),
-  CONSTRAINT `user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-);
-
-
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('patrick@gmail.com','patrick', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('alex@gmail.com','alex', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('john@gmail.com','john', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('namhm@gmail.com','namhm', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('admin@gmail.com','admin', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-
-INSERT INTO `roles` (`name`) VALUES ('USER');
-INSERT INTO `roles` (`name`) VALUES ('CREATOR');
-INSERT INTO `roles` (`name`) VALUES ('EDITOR');
-INSERT INTO `roles` (`name`) VALUES ('ADMIN');
-
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (1, 1);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (2, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (3, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (5, 4);
-```
-
-#### Code the entity classes
-
-#### Role Entity class
+So add a new column named reset_password_token with data type is varchar(30) because we’ll use a random token string of 30 characters. Then update the corresponding entity class, by declaring a new field named resetPasswordToken:
 
 ```
 @Entity
-@Table(name = "roles")
-@Data
-public class Role {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
-    private String name;
-}
-```
-
-#### User entity class
-
-```
-@Entity
-@Table(name = "users")
-@Data
+@Table(name = "customers")
 public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String email;
-    private String name;
-    private String password;
-    private boolean enabled;
-
-    @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "users_roles",
-            joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id",referencedColumnName = "id")
-    )
-    private Set<Role> roles = new HashSet<>();
-
+ 
+    // other fields...
+   
+    @Column(name = "reset_password_token")
+    private String resetPasswordToken;
+   
+    // getters and setters...
 }
 ```
 
-#### User Details Implementation
+When a customer submits a request to reset password, the application will generate a random reset password token, which will be used in the forgot password email and reset password form to make sure that only the user who got the email can change password.
+
+## 2. Update Repository Interface and Service Class
+
+Next, in the repository layer, declare two new methods in the repository interface as below:
 
 ```
-public class MyUserDetails implements UserDetails {
+public interface UserRepository extends JpaRepository<User, Long> {
 
-    private User user;
+    Optional<User> getUserByEmail(String email);
+    Optional<User> findByResetPasswordToken(String token);
+}
 
-    public MyUserDetails(User user) {
-        this.user = user;
+```
+
+The findByEmail() method will be used to check a user’s email when he starts to use the forgot password function. And the findByResetPasswordToken() method will be used to validate the token when the user clicks the change password link in email.
+
+And update the service class as follows:
+
+```
+@Transactional
+@Service
+public class UserService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    public void updateResetPasswordToken(String token, String email) throws UsernameNotFoundException {
+        User user = userRepository.getUserByEmail(email).orElseThrow(() -> new UsernameNotFoundException("no user found"));
+        user.setResetPasswordToken(token);
+        userRepository.save(user);
     }
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles()
-                .stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName()))
-                .collect(Collectors.toList());
+    public User getByResetPasswordToken(String token) {
+        return userRepository.findByResetPasswordToken(token).orElseThrow(() -> new UsernameNotFoundException("no user found"));
     }
 
-    @Override
-    public String getPassword() {
-        return user.getPassword();
-    }
-
-    @Override
-    public String getUsername() {
-        return user.getEmail();
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true;
-    }
-
-    public String getName() {
-        return user.getName();
+    public void updatePassword(User user, String newPassword) {
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        user.setPassword(encodedPassword);
+        user.setResetPasswordToken(null);
+        userRepository.save(user);
     }
 }
 ```
 
-#### Configure Authorization
+Here we implement 3 methods:
+
+* updateResetPasswordToken(): sets value for the field resetPasswordToken of a user found by the given email – and persist change to the database. Else throw UserNotFoundException (you may need to create this exception class).
+* getByResetPasswordToken(): finds a user by the given reset password token. Suppose that the random token is unique.
+* updatePassword(): sets new password for the user (using BCrypt password encoding) and nullifies the reset password token.
+
+These methods will be used by a Spring MVC controller class, which you’ll see in the sections below.
+
+
+## 3. Update Login Page
+
+Next, update the login page by adding a hyperlink that allows the user to use the forgot password function:
 
 ```
-@Configuration
-@EnableWebSecurity
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+<a th:href="/@{/forgot_password}">Forgot your password?</a>
+```
 
 
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.authenticationProvider(daoAuthenticationProvider());
+## 4. Add Spring Mail dependency and Configure JavaMail properties
+
+```
+ <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+```
+
+I will be using Gmail’s SMTP server for sending emails, so specify the following properties in the Spring application configuration file (below is in yml format):
+
+```
+spring.mail.host=smtp.gmail.com
+spring.mail.username=<..email..>
+spring.mail.password=<apppassword>
+spring.mail.port=587
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+```
+
+
+## 5. Create Forgot Password Controller class
+
+```
+@Controller
+public class ForgotPasswordController {
+    @Autowired
+    private JavaMailSender mailSender;
+   
+    @Autowired
+    private CustomerServices customerService;
+   
+    @GetMapping("/forgot_password")
+    public String showForgotPasswordForm() {
+ 
     }
-
-    public DaoAuthenticationProvider daoAuthenticationProvider(){
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setUserDetailsService(userDetailsService());
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
-        return daoAuthenticationProvider;
+ 
+    @PostMapping("/forgot_password")
+    public String processForgotPassword() {
     }
-
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return new UserDetailsServiceImpl();
+   
+    public void sendEmail(){
+ 
+    }  
+   
+   
+    @GetMapping("/reset_password")
+    public String showResetPasswordForm() {
+ 
     }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .antMatchers("/").permitAll()
-                .antMatchers("/new").hasAnyAuthority( "ADMIN", "CREATOR")
-                .antMatchers("/edit/**").hasAnyAuthority("ADMIN","EDITOR")
-                .antMatchers("/delete/**").hasAuthority("ADMIN")
-                .anyRequest().authenticated()
-                .and().formLogin()
-                .loginPage("/login") // custom login url
-                .usernameParameter("u") // custom login form username name
-                .passwordParameter("p") //custom login form password name
-                .permitAll()
-//                .failureUrl("/loginerror") //custom error login redirection page
-//                .defaultSuccessUrl("/loginsuccess") //custom success login redirection page
-                .and().logout().permitAll();
-//                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
+   
+    @PostMapping("/reset_password")
+    public String processResetPassword() {
+ 
     }
 }
 ```
 
-#### Implement Authorization using Thymeleaf integration
+As you can see, we tell Spring to autowire an instance of JavaMailSender into this controller in order to send email containing the reset password link to the user. You’ll see the detailed code for each handler method in the next sections.
 
-To use Thymeleaf with spring security for the view make sure you declare the relavant
 
-```
-<html xmlns:th="http://www.thymeleaf.org"
-    xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
-```
+## 6. Code Forgot Password Page
 
-To display username of a logged in user use the following code:
-
-`<span sec:authentication="name">Username</span>`
-
-To show all the roles (authorities/permissions/rights) of the current user, use the following code:
-
-`<span sec:authentication="principal.authorities">Roles</span>`
-
-To show a section that is for only authenticated users, use the following code:
+When a user clicks the Forgot your password link in the home page, the application will show the forgot password page that requires the user enters email in order to receive reset password link. So update code of the handler method as follows:
 
 ```
-<div sec:authorize="isAuthenticated()">
-        Welcome <b><span sec:authentication="name">name</span></b>
-        <p sec:authentication="principal.name"></p>
-         
-        <i><span sec:authentication="principal.authorities">Roles</span></i>
+@GetMapping("/forgot_password")
+public String showForgotPasswordForm() {
+    return "forgot_password_form";
+}
+```
+
+This handler method simply returns the view name forgot_password_form, so create a new HTML file with the same name, under src/main/resources/templates. Make sure that it contains the following code:
+
+```
+<div>
+    <h2>Forgot Password</h2>
+</div>
+   
+<div th:if="${error != null}">
+    <p class="text-danger">[[${error}]]</p>
+</div>
+<div th:if="${message != null}">
+    <p class="text-warning">[[${message}]]</p>
+</div>
+     
+<form th:action="@{/forgot_password}" method="post" style="max-width: 420px; margin: 0 auto;">
+<div class="border border-secondary rounded p-3">
+    <div>
+        <p>We will be sending a reset password link to your email.</p>
     </div>
-```
-
-The users with role EDITOR or ADMIN can see the links to edit/update products, thus the following code:
-
-```
-<div sec:authorize="hasAnyAuthority('ADMIN', 'EDITOR')">
-    <a th:href="/@{'/edit/' + ${product.id}}">Edit</a>
+    <div>
+        <p>
+            <input type="email" name="email" class="form-control" placeholder="Enter your e-mail" required autofocus/>
+        </p>     
+        <p class="text-center">
+            <input type="submit" value="Send" class="btn btn-primary" />
+        </p>
+    </div>
 </div>
+</form>
 ```
 
+
+## 7. Code to Send Reset Password Email
+
+Next, code another handler method in the controller class to process the forgot password form as below:
+
 ```
-<div sec:authorize="hasAuthority('ADMIN')">
-    <a th:href="/@{'/delete/' + ${product.id}}">Delete</a>
+@PostMapping("/forgot_password")
+    public String processForgotPassword(HttpServletRequest request, Model model) {
+        String email = request.getParameter("email");
+        String token = RandomString.make(30);
+
+        try {
+
+            userService.updateResetPasswordToken(token, email);
+            String resetPasswordLink = Utility.getStaticSiteUrl(request) + "/reset_password?token=" + token;
+            sendEmail(email, resetPasswordLink);
+            model.addAttribute("message", "We have sent a reset password link to your email. Please check.");
+
+        } catch (UsernameNotFoundException e) {
+            model.addAttribute("error", e.getMessage());
+        } catch (UnsupportedEncodingException | MessagingException e) {
+            model.addAttribute("error", "Error while sending email");
+        }
+        return "forgot_password_form";
+    }
+```
+
+
+As you can see, a random String is generated as reset password token using the RandomString class from the net.bytebuddy.utility package. ByteBuddy is a library comes with Spring Boot so you don’t have to declare any new dependency.
+
+The it updates the reset password token field of the user found with the given email, otherwise throws an exception whose message will be shown up in the forgot password form.
+
+Then it generates a reset password link containing the random token as a URL parameter in the following form:
+
+```
+http://contextpath/reset_password?token=random_token
+```
+
+And below is code of the sendEmail() method:
+
+```
+ public void sendEmail(String recipientEmail, String link) throws MessagingException, UnsupportedEncodingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message);
+        helper.setFrom("contact@test.com", "support");
+        helper.setTo(recipientEmail);
+        String subject = "Here's the link to reset your password";
+
+        String content = "<p>Hello,</p>"
+                + "<p>You have requested to reset your password.</p>"
+                + "<p>Click the link below to change your password:</p>"
+                + "<p><a href=\"" + link + "\">Change my password</a></p>"
+                + "<br>"
+                + "<p>Ignore this email if you do remember your password, "
+                + "or you have not made the request.</p>";
+
+        helper.setSubject(subject);
+
+        helper.setText(content, true);
+
+        mailSender.send(message);
+    }
+```
+
+
+## 8. Code to Show Reset Password page
+
+Next, implement the following handler method in the controller class to display the reset password page when the user clicks the Change password link in the email:
+
+```
+@GetMapping("/reset_password")
+    public String showResetPasswordForm(@Param(value = "token") String token, Model model) {
+        User user = userService.getByResetPasswordToken(token);
+        model.addAttribute("token", token);
+        if(user == null){
+            model.addAttribute("message", "Invalid Token");
+            return "message";
+        }
+        return "reset_password_form";
+    }
+```
+
+
+Here, the application checks for the validity of the token in the URL, to make sure that only the user who got the real email can change password. In case the token not found in the database, it will display the message “Invalid Token”;
+
+And create the reset_password_form.html file containing the following code:
+
+```
+<div>
+    <h2>Reset Your Password</h2>
 </div>
+     
+<form th:action="@{/reset_password}" method="post" style="max-width: 350px; margin: 0 auto;">
+    <input type="hidden" name="token" th:value="${token}" />
+<div class="border border-secondary rounded p-3">
+    <div>
+        <p>
+            <input type="password" name="password" id="password" class="form-control"
+                placeholder="Enter your new password" required autofocus />
+        </p>     
+        <p>
+            <input type="password" class="form-control" placeholder="Confirm your new password"
+                required oninput="checkPasswordMatch(this);" />
+        </p>     
+        <p class="text-center">
+            <input type="submit" value="Change Password" class="btn btn-primary" />
+        </p>
+    </div>
+</div>
+</form>
+```
+
+
+## 9. Code to Handle Reset Password form
+
+Next, implement the handler method to process password reset as follows:
+
+```
+@PostMapping("/reset_password")
+    public String processResetPassword(HttpServletRequest request, Model model) {
+        String token = request.getParameter("token");
+        String password = request.getParameter("password");
+
+        User user = userService.getByResetPasswordToken(token);
+        model.addAttribute("title", "Reset your password");
+
+        if (user == null) {
+            model.addAttribute("message", "Invalid Token");
+            return "message";
+        } else {
+            userService.updatePassword(user, password);
+
+            model.addAttribute("message", "You have successfully changed your password.");
+        }
+
+        return "message";
+    }
 ```
