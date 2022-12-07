@@ -31,6 +31,9 @@
     <div th:if="${param.logout}">
         <h3>You have been logged out.</h3>
     </div>
+    <div th:if="${param.error}">
+        <p class="text-danger">[[${session.SPRING_SECURITY_LAST_EXCEPTION.message}]]</p>
+    </div>
     <div>
         <form th:action="@{/login}" method="post">
             <div><label>Username: </label> <input type="text" name="u" /></div>

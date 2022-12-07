@@ -1,203 +1,336 @@
-# Spring Boot Password Encryption for Application Configuration File using Jasypt
+# Spring Security Limit Login Attempts Example
 
 
-## 1. What is Jasypt?
+You will learn how to implement the limit login attempts function with the following strategy:
+
+* A user can login failed 3 times maximum. His account will be locked on the last failed attempt.
+* The user account is locked during 24 hours. That means after this duration the user account will be unlocked (upon the next login attempt).
 
 
-Jasypt stands for Java Simplified Encryption – a high-security and high-performance encryption library that allows developers to add basic encryption capabilities to their projects with minimal effort, without the need of having deep knowledge on how cryptography works.
-
-Jasypt provides standard-based encryption techniques which can be used for encrypting passwords, texts, numbers, binaries… and it can integrate seamlessly and transparently with enterprise frameworks like Spring and Hibernate. Jasypt is easy to use yet highly configurable.
+## 1. Update Users table and User Entity Class
 
 
-## 2. Declare dependencies for Jasypt Spring Boot and Jasypt Maven plugin
+Suppose that the user information is stored in a table named users. You need to add 3 extra columns in order to implement the limit login attempt function. They are:
 
-In order to use Jasypt library for a Spring Boot application, you need to declare the following dependency in the project’s pom.xml file:
-
-```
-<dependency>
-  <groupId>com.github.ulisesbocchio</groupId>
-  <artifactId>jasypt-spring-boot-starter</artifactId>
-  <version>3.0.3</version>
-</dependency>
-```
-
-This will add some JAR files to the project’s classpath, which help Jasypt to decrypt the encrypted values in the application configuration file transparently.
-
-Then you also need to declare Jasypt Maven plugin as follows:
+* failed_attempt: a small integer number that indicates the number of failed login attempts. The user’s account will be locked if failed_attempt > 2. The default value is 0.
+* account_non_locked: a boolean value that indicates the user’s account is locked or not. Spring Security will reject login of a locked account. The default value is true (1 in MySQL).
+* lock_time: a date time value that indicates the time at which the user’s account is locked. Based on this value the application can determine when the lock expires and unlock the user’s account. The default value is null.
 
 ```
-<plugin>
-   <groupId>com.github.ulisesbocchio</groupId>
-   <artifactId>jasypt-maven-plugin</artifactId>
-   <version>3.0.3</version>
- </plugin>
-```
-
-This plugin is important as it allows use to use Maven commands for encryption and decryption, as described in the following sections.
-
-
-## 3. Encrypt and Decrypt a single String value
-
-Open a new command prompt window. Change the current directory to the project directory where the pom.xml file is in. And type the following command:
-
-```
-mvn jasypt:encrypt-value -Djasypt.encryptor.password=cafe21 -Djasypt.plugin.value=n@mHm2020
-```
-
-This will run Jasypt Maven plugin to encrypt the string n@mHm2020 using the default encryption configuration with the private key cafe21. In the output, you would see it prints something like this:
-
-```
-ENC(MBTWfX8gqMevQe5CKW0pToMbajnpJk0zlb3yoooiSWPjkfYrE8TFNF6vDEMXTu/j)
-```
-
-Here, the encrypted value is wrapped inside ENC(), then you can use replace a password in the configuration file by this value.
-
-If you run the above command again, you will see a different encrypted value because the default encryptor uses a random generator. That means a string can be different encrypted value though the private key is the same.
-
-The default encrypt algorithm is bidirectional, which means you can do decryption. Type the following command:
-
-```
-mvn jasypt:decrypt-value -Djasypt.encryptor.password=cafe21 -Djasypt.plugin.value=MBTWfX8gqMevQe5CKW0pToMbajnpJk0zlb3yoooiSWPjkfYrE8TFNF6vDEMXTu/j
-```
-
-This will decrypt the specified value using the default encryption configuration with the private key cafe21. Then you would see it prints the original value n@mHm2020.
-
-So these encrypt and decrypt commands are the very basic ones you should be familiar with.
-
-
-## 4. Encrypt credentials in application.properties file
-
-Suppose that you want to encrypt username and password of a Spring data source in the following application.properties file:
-
-```
-spring.jpa.hibernate.ddl-auto=none
-spring.datasource.url=jdbc:mysql://localhost:3306/shopmedb
-spring.datasource.username=root
-spring.datasource.password=password
-```
-
-First, wrap the values of username and password inside DEC() as shown below:
-
-```
-spring.jpa.hibernate.ddl-auto=none
-spring.datasource.url=jdbc:mysql://localhost:3306/shopmedb
-spring.datasource.username=DEC(root)
-spring.datasource.password=DEC(password)
-```
-
-
-Here, DEC() is a placeholder that tells Jasypt what to encrypt, and the remaining values are untouched.
-
-And in the command prompt, type:
-
-```
-mvn jasypt:encrypt -Djasypt.encryptor.password=cafe21
-```
-
-Then it will replace the DEC() placeholders in the application.properties file with the encrypted value:
-
-```
-spring.jpa.hibernate.ddl-auto=none
-spring.datasource.url=jdbc:mysql://localhost:3306/shopmedb
-spring.datasource.username=ENC(9tl1aMX4Ije8n0+IcjyS...)
-spring.datasource.password=ENC(IQi6U2g7sz4pw6wL4GoY...)
-```
-
-Voila! Very easy and convenient, right? No manual copy and paste. Just put the values you want to encrypt inside DEC() and run the mvn jasypt:encrypt command.
-
-
-## 5. Run a Spring Boot application with Jasypt
-
-Now, to run the Spring Boot application you need to pass the private key password as VM arguments in the command prompt like this:
-
-```
-java -Djasypt.encryptor.password=cafe21 –jar yourapp.jar
-```
-
-
-## 6. Decrypt credentials in Spring application configuration file
-
-In case you want to see the original values of encrypted ones in the Spring Boot configuration file, type the following Maven command:
-
-```
-mvn jasypt:decrypt -Djasypt.encryptor.password=cafe21
-```
-
-Jasypt will print content of the application.properties file in the output, as it was before encryption. So this command would be useful for checking and verification purpose. Note that it doesn’t update the configuration file.
-
-
-## 7. Encrypt credentials in application.yml file
-
-By default, Jasypt will update the application.properties file. In case you’re using application.yml in your project, specify the path of the file in the command like this:
-
-```
-mvn jasypt:encrypt -Djasypt.encryptor.password=cafe21 -Djasypt.plugin.path="file:src/main/resources/application.yml"
-```
-
-Using this syntax, you can encrypt credentials in any properties file you wish to.
-
-
-## 8. Re-encryption with new encryption password
-
-If you want to change the encryptor’s private key (password), simply use this command:
-
-```
-mvn jasypt:reencrypt -Djasypt.plugin.old.password=cafe21 -Djasypt.encryptor.password=10duke
-```
-
-Then Jasypt Maven plugin will replace the values encrypted with the old password cafe21 with the new ones encrypted with the new password 10duke – and you get the configuration file updated instantly. Very convenient.
-
-
-## 9. Configure encryptor in Spring configuration class
-
-Jasypt is easy to use, as you’ve seen with the commands above. And it is also highly configurable if you have some knowledge in cryptography and you want to customize settings for the encryptor. For example, create a new Spring configuration class in the project as follows:
-
-```
-package net.codejava.security;
+import javax.persistence.*;
  
-import org.jasypt.encryption.StringEncryptor;
-import org.jasypt.encryption.pbe.PooledPBEStringEncryptor;
-import org.jasypt.encryption.pbe.config.SimpleStringPBEConfig;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+   
+    private String email;
+   
+    private String password;
+   
+    private String firstName;
+   
+    private String lastName;
+   
+    private boolean enabled;
+   
+    @Column(name = "account_non_locked")
+    private boolean accountNonLocked;
+   
+    @Column(name = "failed_attempt")
+    private int failedAttempt;
+   
+    @Column(name = "lock_time")
+    private Date lockTime;
  
-@Configuration
-public class JasyptAdvancedConfig {
- 
-    @Bean(name = "jasyptStringEncryptor")
-    public StringEncryptor getPasswordEncryptor() {
-        PooledPBEStringEncryptor encryptor = new PooledPBEStringEncryptor();
-        SimpleStringPBEConfig config = new SimpleStringPBEConfig();
-     
-        config.setPassword("password"); // encryptor's private key
-     
-        config.setAlgorithm("PBEWithMD5AndDES");
-        config.setKeyObtentionIterations("1000");
-        config.setPoolSize("1");
-        config.setProviderName("SunJCE");
-        config.setSaltGeneratorClassName("org.jasypt.salt.RandomSaltGenerator");
-        config.setStringOutputType("base64");
-     
-        encryptor.setConfig(config);
-     
-        return encryptor;
+    // constructors...
+   
+    // getters...
+   
+    // setters...
+}
+```
+
+
+## 2. Update UserDetails Class
+
+When implementing authentication using Spring Security, you already created a class of type UserDetails to hold details of an authenticated user. So make sure that the isAccountNonLocked() method is updated as follows:
+
+```
+public class MyUserDetails implements UserDetails {
+
+    private User user;
+
+    public MyUserDetails(User user) {
+        this.user = user;
+    }
+
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return user.isAccountNonLocked();
+    }
+
+}
+```
+
+
+## 3. Update User Repository and Service Classes
+
+Next, you need to declare a method in the UserRepository class to update the number of failed login attempts for a user based on his email, as follows:
+
+```
+public interface UserRepository extends JpaRepository<User, Long> {
+
+    Optional<User> findByEmail(String email);
+
+    Optional<User> findByResetPasswordToken(String token);
+
+    @Modifying
+    @Query("UPDATE  User u SET u.failedAttempt = ?1 WHERE u.email = ?2")
+    void updateFailedAttempts(int attempts, String email);
+}
+```
+
+
+As you can see, we use a custom query (JPA query).
+
+And update the business class UserServices by implementing 4 new methods and a couple of constants, as follows:
+
+
+```
+@Transactional
+@Service
+public class UserService {
+
+
+    public static final int MAX_FAILED_ATTEMPTS = 3;
+
+    private static final long LOCK_TIME_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+
+    public User getByEmail(String email){
+        return userRepository.findByEmail(email).orElseThrow(()-> new UsernameNotFoundException("no user found"));
+    }
+
+    public void updateResetPasswordToken(String token, String email) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("no user found"));
+        user.setResetPasswordToken(token);
+        userRepository.save(user);
+    }
+
+    public User getByResetPasswordToken(String token) {
+        return userRepository.findByResetPasswordToken(token).orElseThrow(() -> new UsernameNotFoundException("no user found"));
+    }
+
+    public void updatePassword(User user, String newPassword) {
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        user.setPassword(encodedPassword);
+        user.setResetPasswordToken(null);
+        userRepository.save(user);
+    }
+
+    public void increaseFailedAttempts(User user) {
+        int newFailedAttempts = user.getFailedAttempt() + 1;
+        userRepository.updateFailedAttempts(newFailedAttempts, user.getEmail());
+    }
+
+    public void resetFailedAttempts(String email){
+        userRepository.updateFailedAttempts(0, email);
+    }
+
+    public void lock(User user){
+        user.setAccountNonLocked(false);
+        user.setLockTime(new Date());
+        userRepository.save(user);
+    }
+
+    public boolean unlockWhenTimeExpired(User user){
+        long lockTimeInMilis = user.getLockTime().getTime();
+        long currentTimeInMilis = System.currentTimeMillis();
+
+        if(lockTimeInMilis + LOCK_TIME_DURATION < currentTimeInMilis){
+            user.setAccountNonLocked(true);
+            user.setLockTime(null);
+            user.setFailedAttempt(0);
+            userRepository.save(user);
+            return true;
+        }
+        return false;
     }
 }
 ```
 
-This code will override the default encryption configuration, so you need to write some code to encrypt a password like this:
+Let me explain this new code. First, we declare the maximum number of failed login attempts allowed:
 
 ```
-String rawPassword = "password";
-String encryptedPassword = encryptor.encrypt(rawPassword);
-System.out.println(encryptedPassword);
+public static final int MAX_FAILED_ATTEMPTS = 3;
 ```
 
-Then update the Spring Boot application configuration file by putting the encrypted values inside ENC() like this:
+And duration of the lock time in milliseconds:
 
 ```
-spring.jpa.hibernate.ddl-auto=none
-spring.datasource.url=jdbc:mysql://localhost:3306/shopmedb
-spring.datasource.username=ENC(encrypted_username)
-spring.datasource.password=ENC(encrypted_password)
+private static final long LOCK_TIME_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 ```
+
+So it would be easy to configure/change the maximum allowed failed logins and lock duration. And let’s come to the new methods:
+
+* increaseFailedAttempts(): this method updates the number of failed attempts of a user. It is called each time the user fails to login (e.g. providing wrong username or password).
+* resetFailedAttempts(): sets the number of failed attempts to zero. This method will be called when the user has logged in successfully.
+* lock(): locks the user’s account if the number of failed logins reach the maximum allowed times.
+* unlockWhenTimeExpired(): unlocks the user’s account when lock duration expires, allowing the user to login as usual.
+
+
+## 4. Update Login Page
+
+In your custom login page, ensure that it contains the following code snippet to display the exception message upon failed login.
+
+```
+<div th:if="${param.error}">
+    <p class="text-danger">[[${session.SPRING_SECURITY_LAST_EXCEPTION.message}]]</p>
+</div>
+```
+
+It’s important to have this code in the login page, so it will show the original error message generated by Spring Security.
+
+
+## 5. Code Authentication Failure Handler
+
+Next, we need to code a custom authentication failure handler class to intervene the authentication process of Spring Security in order to update the number of failed login attempts, lock and unlock the user’s account. So create a new class CustomLoginFailureHandler with the following code:
+
+```
+@Component
+public class CustomLoginFailureHandler extends SimpleUrlAuthenticationFailureHandler {
+
+    @Autowired
+    private UserService userService;
+
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+        String email = request.getParameter("u");
+        User user = userService.getByEmail(email);
+
+        if (user != null) {
+            if (user.isEnabled() && user.isAccountNonLocked()) {
+                if (user.getFailedAttempt() < UserService.MAX_FAILED_ATTEMPTS - 1) {
+                    userService.increaseFailedAttempts(user);
+                } else {
+                    userService.lock(user);
+                    exception = new LockedException("Your account has been locked due to 3 failed attempts."
+                            + " It will be unlocked after 24 hours.");
+                }
+            } else if (!user.isAccountNonLocked()) {
+                if (userService.unlockWhenTimeExpired(user)) {
+                    exception = new LockedException("Your account has been unlocked. Please try to login again.");
+                }
+            }
+
+        }
+
+        super.setDefaultFailureUrl("/login?error");
+        super.onAuthenticationFailure(request, response, exception);
+    }
+}
+```
+
+
+Let me explain this code. First, it gets a User object based on the email which was entered in the login page. If the user is found in the database and the user is enabled and non-locked:
+
+* Increase the number of failed login attempts if it has not reached the maximum allowed times, else:
+* Lock the user’s account if the failed login times is equal or greater than the maximum allowed times.
+
+And in case the user’s account is locked, it will try to unlock the account if lock duration expires.
+
+Note that we throw LockedException (defined by Spring Security) with custom error message that will be displayed in the login page.
+
+
+## 6. Code Authentication Success Handler
+
+
+There can be a case in which the user fails to login the first time (or second time) but successful on the next time. So the application should clear the number of failed login attempts immediately after the user has logged in successfully.
+
+To do so, you need to create a custom authentication handler class with the following code:
+
+```
+@Component
+public class CustomLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
+
+
+    @Autowired
+    private UserService userService;
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+        MyUserDetails myUserDetails = (MyUserDetails) authentication.getPrincipal();
+        User user = myUserDetails.getUser();
+        if(user.getFailedAttempt() > 0){
+            userService.resetFailedAttempts(user.getEmail());
+        }
+        super.onAuthenticationSuccess(request, response, authentication);
+    }
+}
+```
+
+
+## 7. Update Spring Security Configuration Class
+
+And to enable the custom authentication failure and success handlers above, you need to update the Spring Security configuration class as follows:
+
+```
+@Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/", "/login**","/forgot_password", "/reset_password").permitAll()
+                .antMatchers("/new").hasAnyAuthority("ADMIN", "CREATOR")
+                .antMatchers("/edit/**").hasAnyAuthority("ADMIN", "EDITOR")
+                .antMatchers("/delete/**").hasAuthority("ADMIN")
+                .anyRequest().authenticated()
+                .and().formLogin()
+                .loginPage("/login") // custom login url
+                .usernameParameter("u") // custom login form username name
+                .passwordParameter("p") //custom login form password name
+                .successHandler(customLoginSuccessHandler)
+                .failureHandler(customLoginFailureHandler)
+                .permitAll()
+//                .failureUrl("/loginerror") //custom error login redirection page
+//                .defaultSuccessUrl("/loginsuccess") //custom success login redirection page
+                .and().logout().permitAll();
+//                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
+    }
+```
+
+
+## 8. Test Limit Login Attempts Function
+
+
+Before testing, ensure that the new columns have default values: 0 for failed_attempt, true for account_non_locked and null for lock_time.
+
+Start your Spring Boot application and go to the login page. Enter a correct username but wrong password, you would see the following error at the first failed login attempt:
+
+![first login fail](images/first_failed_login_attempt.png "first login fail")
+
+
+Check the database and you should see failed_attempt = 1. Now try to login with a wrong password again. You would see the same error, but failed_attempt = 2.
+
+Next, try to make the third failed login, it says the user’s account has been locked:
+
+![account_locked](images/acount_is_locked.png "account locked")
+
+
+Check the database, and you should see failed_attempt = 2, account_non_locked = 0 (false) and lock_time is set to a specific time.
+
+Then the user won’t be able to login during 24 hours since his account is locked.
+
+Wait for the lock time expires (for quick testing, you can change the lock time duration to 5 minutes), and login again with correct credentials. The user will see this screen:
+
+![account_unlocked](images/account_is_unlocked.png "account unlocked")
+
+And the user must login again (with correct credentials). Check the database and you should see values of the new 3 columns have been set to default values.

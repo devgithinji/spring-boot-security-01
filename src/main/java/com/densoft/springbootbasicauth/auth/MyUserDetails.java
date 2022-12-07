@@ -41,7 +41,7 @@ public class MyUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return user.isAccountNonLocked();
     }
 
     @Override
@@ -56,5 +56,9 @@ public class MyUserDetails implements UserDetails {
 
     public String getName() {
         return user.getName();
+    }
+
+    public User getUser() {
+        return user;
     }
 }
