@@ -1,158 +1,48 @@
-# Spring Boot Security Role-based Authorization Tutorial
+# Spring Security Before Authentication Filter Examples
 
-Create and Design Tables
-
-For role-based authorization with credentials and authorities stored in database, we have to create the following 3 tables:
-
-![role based auth](images/users_and_roles_relationship.png "user roles and relationship")
-
-You can execute the following mysql script
-
-```
-CREATE TABLE `users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `email` varchar(45) NOT NULL,
-  `name` varchar(45) NOT NULL,
-  `password` varchar(64) NOT NULL,
-  `enabled` tinyint(4) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `email_UNIQUE` (`email`)
-);
-
-CREATE TABLE `roles` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(45) NOT NULL,
-  PRIMARY KEY (`id`)
-);
-
-CREATE TABLE `users_roles` (
-  `user_id` int(11) NOT NULL,
-  `role_id` int(11) NOT NULL,
-  KEY `user_fk_idx` (`user_id`),
-  KEY `role_fk_idx` (`role_id`),
-  CONSTRAINT `role_fk` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`),
-  CONSTRAINT `user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-);
+how to intercept the authentication process of Spring Security in order to run custom logics just before the authentication takes place. In practice, we need to do the following tasks before authentication:
 
 
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('patrick@gmail.com','patrick', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('alex@gmail.com','alex', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('john@gmail.com','john', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('namhm@gmail.com','namhm', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
-INSERT INTO `users` (`email`,`name`, `password`, `enabled`) VALUES ('admin@gmail.com','admin', '$2a$10$qrqCXjqaXLt3JnKgATZ1p.fmhwjEZ5A5EfDaJsqKO5o4t.id9ccVO', '1');
+* Check the spam score (using Google ReCaptcha API) of the current login request to decide whether to require OTP (One-Time Password) or not.
+* Clear failed login attempts if the lock already expired.
+* Any custom logics that need to be executed just before authentication.
 
-INSERT INTO `roles` (`name`) VALUES ('USER');
-INSERT INTO `roles` (`name`) VALUES ('CREATOR');
-INSERT INTO `roles` (`name`) VALUES ('EDITOR');
-INSERT INTO `roles` (`name`) VALUES ('ADMIN');
+The following diagram helps you understand the workflow under the context of Spring Security’s authentication process:
 
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (1, 1);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (2, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (3, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 2);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (4, 3);
-INSERT INTO `users_roles` (`user_id`, `role_id`) VALUES (5, 4);
-```
+![before auth filter](images/spring_security_before_authentication_handler.png "before auth filter")
 
-#### Code the entity classes
+As you can see, it requires to setup a custom filter that is executed before Spring Security filter. This custom filter will override all the existing configurations for login success handler, login failure handler and logout success handler. That means when you configure a before authentication filter, you need to configure those handlers in this filter (if needed).
 
-#### Role Entity class
+
+## 1. Simple Before Authentication Filter Configuration
+
+
+Suppose that you have an existing Spring Boot project with the login function already implemented. And now you want to configure a before authentication filter.
+
+First, you need to create a new class that extends the UsernamePasswordAuthenticationFilter class as follows:
 
 ```
-@Entity
-@Table(name = "roles")
-@Data
-public class Role {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
-    private String name;
-}
-```
-
-#### User entity class
-
-```
-@Entity
-@Table(name = "users")
-@Data
-public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String email;
-    private String name;
-    private String password;
-    private boolean enabled;
-
-    @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "users_roles",
-            joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id",referencedColumnName = "id")
-    )
-    private Set<Role> roles = new HashSet<>();
-
-}
-```
-
-#### User Details Implementation
-
-```
-public class MyUserDetails implements UserDetails {
-
-    private User user;
-
-    public MyUserDetails(User user) {
-        this.user = user;
+public class CustomBeforeAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+    public CustomBeforeAuthenticationFilter() {
+        setUsernameParameter("email");
+        super.setRequiresAuthenticationRequestMatcher(new AntPathRequestMatcher("/login", "POST"));
     }
 
     @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles()
-                .stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName()))
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public String getPassword() {
-        return user.getPassword();
-    }
-
-    @Override
-    public String getUsername() {
-        return user.getEmail();
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true;
-    }
-
-    public String getName() {
-        return user.getName();
+    public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
+        String email = request.getParameter("email");
+        System.out.println("The user " + email + " is about to login");
+        return super.attemptAuthentication(request, response);
     }
 }
 ```
 
-#### Configure Authorization
+
+You see, the code in the constructor sets username parameter to “email” because the custom login page uses “email” as name of the username field; and it this filter is configured to be invoked only for the request /login with HTTP POST method.
+
+And the callback method is attemptAuthentication() which will be executed right before Spring Security authenticates the user – this method is where you put the custom logics. And finally it should call super.attemptAuthentication() to delegate processing to the Spring Security filter.
+
+And configure this filter in the Spring security configuration class as follows:
 
 ```
 @Configuration
@@ -165,7 +55,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         auth.authenticationProvider(daoAuthenticationProvider());
     }
 
-    public DaoAuthenticationProvider daoAuthenticationProvider(){
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
         DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
         daoAuthenticationProvider.setUserDetailsService(userDetailsService());
         daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
@@ -186,11 +76,13 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         http.authorizeRequests()
                 .antMatchers("/").permitAll()
-                .antMatchers("/new").hasAnyAuthority( "ADMIN", "CREATOR")
-                .antMatchers("/edit/**").hasAnyAuthority("ADMIN","EDITOR")
+                .antMatchers("/new").hasAnyAuthority("ADMIN", "CREATOR")
+                .antMatchers("/edit/**").hasAnyAuthority("ADMIN", "EDITOR")
                 .antMatchers("/delete/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
-                .and().formLogin()
+                .and()
+                .addFilterBefore(getBeforeAuthFilter(), CustomBeforeAuthenticationFilter.class)
+                .formLogin()
                 .loginPage("/login") // custom login url
                 .usernameParameter("u") // custom login form username name
                 .passwordParameter("p") //custom login form password name
@@ -200,47 +92,21 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .and().logout().permitAll();
 //                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
     }
+
+    public UsernamePasswordAuthenticationFilter getBeforeAuthFilter() throws Exception {
+        CustomBeforeAuthenticationFilter filter = new CustomBeforeAuthenticationFilter();
+        filter.setAuthenticationManager(authenticationManager());
+        filter.setAuthenticationFailureHandler(new SimpleUrlAuthenticationFailureHandler() {
+            @Override
+            public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+                System.out.println("Login error: " + exception.getMessage());
+                super.setDefaultFailureUrl("/login?error");
+                super.onAuthenticationFailure(request, response, exception);
+            }
+        });
+        return filter;
+    }
 }
 ```
 
-#### Implement Authorization using Thymeleaf integration
-
-To use Thymeleaf with spring security for the view make sure you declare the relavant
-
-```
-<html xmlns:th="http://www.thymeleaf.org"
-    xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
-```
-
-To display username of a logged in user use the following code:
-
-`<span sec:authentication="name">Username</span>`
-
-To show all the roles (authorities/permissions/rights) of the current user, use the following code:
-
-`<span sec:authentication="principal.authorities">Roles</span>`
-
-To show a section that is for only authenticated users, use the following code:
-
-```
-<div sec:authorize="isAuthenticated()">
-        Welcome <b><span sec:authentication="name">name</span></b>
-        <p sec:authentication="principal.name"></p>
-         
-        <i><span sec:authentication="principal.authorities">Roles</span></i>
-    </div>
-```
-
-The users with role EDITOR or ADMIN can see the links to edit/update products, thus the following code:
-
-```
-<div sec:authorize="hasAnyAuthority('ADMIN', 'EDITOR')">
-    <a th:href="/@{'/edit/' + ${product.id}}">Edit</a>
-</div>
-```
-
-```
-<div sec:authorize="hasAuthority('ADMIN')">
-    <a th:href="/@{'/delete/' + ${product.id}}">Delete</a>
-</div>
-```
+As you can see, a custom before authentication filter is configured in the getBeforeAuthenticationFilter() method. And it is required to set the authentication manager and authentication failure handler for this filter (if not, failed login attempt will cause an error). The addFilterBefore() method of the HttpSecurity class will register the custom filter before Spring security filter.
