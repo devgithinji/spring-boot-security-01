@@ -22,22 +22,44 @@
 </head>
 <body>
 <div>
-    <div>
-        <h2>Spring Security Login Form</h2>
-    </div>
-    <div th:if="${param.error}">
-        <h3>Invalid username and password.</h3>
-    </div>
-    <div th:if="${param.logout}">
-        <h3>You have been logged out.</h3>
-    </div>
-    <div>
-        <form th:action="@{/login}" method="post">
-            <div><label>Username: </label> <input type="text" name="u" /></div>
-            <div><label>Password: </label><input type="password" name="p" /></div>
-            <div><input type="submit" value="Login" /></div>
-            <a th:href="@{/forgot_password}">Forgot your password?</a>
-        </form>
-    </div>
+    <h2>Customer Login</h2>
 </div>
+
+<div th:if="${param.error}">
+    <p class="text-danger"
+       th:utext="${session.SPRING_SECURITY_LAST_EXCEPTION.message}">Error message</p>
+</div>
+<div th:if="${param.otp}">
+    <p class="text-danger">
+        For security reason, we've sent an One-Time-Password (OTP)
+        to your email [[${param.email}]]<br/>
+        Kindly check your email and use the provided OTP to login.<br>
+        Note: The OTP will expire after 5 minutes.
+    </p>
+</div>
+<div th:if="${param.logout}">
+    <p class="text-warning">You have been logged out.</p>
+</div>
+
+<div th:if="${message != null}">
+    <p class="text-primary">[[${message}]]</p>
+</div>
+
+<form th:action="@{/login}" method="post" style="max-width: 350px; margin: 0 auto;">
+    <div class="border border-secondary rounded p-3">
+        <div>
+            <p>
+                <input type="email" name="email" class="form-control"
+                       placeholder="E-mail" th:value="${param.email}" required autofocus/>
+            </p>
+            <p>
+                <input type="password" name="password" class="form-control"
+                       th:placeholder="${param.otp != null ? 'Your One Time Password' : 'Password'}" required />
+            </p>
+            <p class="text-center">
+                <input type="submit" value="Login" class="btn btn-primary" />
+            </p>
+        </div>
+    </div>
+</form>
 </body>

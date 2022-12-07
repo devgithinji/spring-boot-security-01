@@ -26,6 +26,9 @@ public class MyUserDetails implements UserDetails {
 
     @Override
     public String getPassword() {
+        if(user.isOTPRequired()){
+           return user.getOneTimePassword();
+        }
         return user.getPassword();
     }
 
@@ -56,5 +59,10 @@ public class MyUserDetails implements UserDetails {
 
     public String getName() {
         return user.getName();
+    }
+
+
+    public User getUser() {
+        return user;
     }
 }
