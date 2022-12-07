@@ -10,13 +10,14 @@ import javax.servlet.http.HttpServletResponse;
 
 public class CustomBeforeAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
     public CustomBeforeAuthenticationFilter() {
-        setUsernameParameter("email");
+        setUsernameParameter("u");
+        setPasswordParameter("p");
         super.setRequiresAuthenticationRequestMatcher(new AntPathRequestMatcher("/login", "POST"));
     }
 
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
-        String email = request.getParameter("email");
+        String email = request.getParameter("u");
         System.out.println("The user " + email + " is about to login");
         return super.attemptAuthentication(request, response);
     }
