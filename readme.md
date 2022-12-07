@@ -110,3 +110,113 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 ```
 
 As you can see, a custom before authentication filter is configured in the getBeforeAuthenticationFilter() method. And it is required to set the authentication manager and authentication failure handler for this filter (if not, failed login attempt will cause an error). The addFilterBefore() method of the HttpSecurity class will register the custom filter before Spring security filter.
+
+
+
+## 2. Advanced Before Authentication Filter Configuration
+
+In case the before authentication filter needs to depend on a business/service class to perform the custom logics, you need to configure the filter class as follows:
+
+```
+@Component
+public class CustomBeforeAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+    @Autowired
+    private UserService userService;
+
+    public CustomBeforeAuthenticationFilter() {
+        setUsernameParameter("u");
+        setPasswordParameter("p");
+        super.setRequiresAuthenticationRequestMatcher(new AntPathRequestMatcher("/login", "POST"));
+    }
+
+    @Override
+    public void setAuthenticationManager(AuthenticationManager authenticationManager) {
+        super.setAuthenticationManager(authenticationManager);
+    }
+
+    @Override
+    public void setAuthenticationSuccessHandler(AuthenticationSuccessHandler successHandler) {
+        super.setAuthenticationSuccessHandler(successHandler);
+    }
+
+    @Override
+    public void setAuthenticationFailureHandler(AuthenticationFailureHandler failureHandler) {
+        super.setAuthenticationFailureHandler(failureHandler);
+    }
+
+    @Override
+    public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
+        String email = request.getParameter("u");
+        User user = userService.getUser(email);
+        //perform custom logics
+
+        System.out.println("The user " + email + " is about to login");
+        return super.attemptAuthentication(request, response);
+    }
+}
+```
+
+Here, you can see the filter requires an instance of the UserService class, which will be injected by Spring framework as @Autowired is used. And we also configure @Autowired for the authentication manager, authentication success handler and authentication failure handler.
+
+Then you need to update the Spring Security configuration class like this:
+
+```
+@Configuration
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+ 
+    ...
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+            ...
+            .addFilterBefore(customBeforeAuthenticationFilter, CustomBeforeAuthenticationFilter.class)
+            .formLogin()
+                .loginPage("/login")
+                .usernameParameter("email")
+                .permitAll()
+            ...
+    }
+     
+ 
+    @Bean(name = BeanIds.AUTHENTICATION_MANAGER)
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+   
+    @Autowired
+    public CustomBeforeAuthenticationFilter customBeforeAuthenticationFilter;
+ 
+}
+```
+
+Here, note the declaration of an authentication manager bean, which will be injected to the filter instance. We also need to create an authentication success handler class:
+
+```
+@Component
+public class CustomLoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws ServletException, IOException {
+        System.out.println("auth success!!");
+        super.onAuthenticationSuccess(request, response, authentication);
+    }
+}
+
+```
+
+And authentication failure handler class:
+
+```
+@Component
+public class CustomLoginFailureHandler extends SimpleUrlAuthenticationFailureHandler {
+    @Override
+    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+        System.out.println("login failure");
+        super.setDefaultFailureUrl("/login?error");
+        super.onAuthenticationFailure(request, response, exception);
+    }
+}
+
+```

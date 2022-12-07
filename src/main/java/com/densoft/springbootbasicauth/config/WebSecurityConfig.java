@@ -4,7 +4,9 @@ import com.densoft.springbootbasicauth.service.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.BeanIds;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -25,6 +27,10 @@ import java.io.IOException;
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+
+    @Autowired
+    private CustomBeforeAuthenticationFilter customBeforeAuthenticationFilter;
 
 
     @Override
@@ -58,7 +64,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/delete/**").hasAuthority("ADMIN")
                 .anyRequest().authenticated()
                 .and()
-                .addFilterBefore(getBeforeAuthFilter(), CustomBeforeAuthenticationFilter.class)
+                .addFilterBefore(customBeforeAuthenticationFilter, CustomBeforeAuthenticationFilter.class)
                 .formLogin()
                 .loginPage("/login") // custom login url
                 .usernameParameter("u") // custom login form username name
@@ -70,17 +76,10 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 //                .logoutSuccessUrl("/logoutsuccess"); //custom logout redirection page
     }
 
-    public UsernamePasswordAuthenticationFilter getBeforeAuthFilter() throws Exception {
-        CustomBeforeAuthenticationFilter filter = new CustomBeforeAuthenticationFilter();
-        filter.setAuthenticationManager(authenticationManager());
-        filter.setAuthenticationFailureHandler(new SimpleUrlAuthenticationFailureHandler() {
-            @Override
-            public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
-                System.out.println("Login error: " + exception.getMessage());
-                super.setDefaultFailureUrl("/login?error");
-                super.onAuthenticationFailure(request, response, exception);
-            }
-        });
-        return filter;
+
+    @Bean(name = BeanIds.AUTHENTICATION_MANAGER)
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
     }
 }
