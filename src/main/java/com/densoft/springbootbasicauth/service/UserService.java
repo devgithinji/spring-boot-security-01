@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
+
 @Transactional
 @Service
 public class UserService {
@@ -33,6 +35,13 @@ public class UserService {
         String encodedPassword = passwordEncoder.encode(newPassword);
         user.setPassword(encodedPassword);
         user.setResetPasswordToken(null);
+        userRepository.save(user);
+    }
+
+    public void changePassword(User user, String newPassword){
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        user.setPassword(encodedPassword);
+        user.setPasswordChangedTime(new Date());
         userRepository.save(user);
     }
 }
