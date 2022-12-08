@@ -1,6 +1,5 @@
 package com.densoft.springbootbasicauth.service;
 
-import com.densoft.springbootbasicauth.auth.MyUserDetails;
 import com.densoft.springbootbasicauth.model.User;
 import com.densoft.springbootbasicauth.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.getUserByEmail(email).orElseThrow(() -> new UsernameNotFoundException("could not find user"));
-        return new MyUserDetails(user);
+        return userRepository.getUserByEmail(email).orElseThrow(() -> new UsernameNotFoundException("could not find user"));
     }
 }

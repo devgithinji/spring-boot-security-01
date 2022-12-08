@@ -1,6 +1,5 @@
 package com.densoft.springbootbasicauth.repository;
 
-import com.densoft.springbootbasicauth.auth.MyUserDetails;
 import com.densoft.springbootbasicauth.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
